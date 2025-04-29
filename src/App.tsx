@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import {
   Deck,
   Slide,
   Box,
-  Stepper
+  Stepper,
+  DeckContext
 } from 'spectacle';
 import { theme } from './theme';
 import { TimelineItem } from './TimelineItem';
@@ -113,14 +114,36 @@ const presentationData = {
   ]
 };
 
+// Nuevo componente wrapper para manejar el click
+const ClickableSlideWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { stepForward } = useContext(DeckContext);
+
+  return (
+    <Box 
+      width="100%" 
+      height="100%" 
+      onClick={(e: React.MouseEvent) => {
+        e.stopPropagation(); 
+        if (stepForward) {
+            stepForward(); 
+        }
+      }}
+      style={{ cursor: 'pointer' }}
+    >
+      {children}
+    </Box>
+  );
+};
+
 const App: React.FC = () => {
   return (
     <Deck theme={theme}>
       {presentationData.slides.map((slide, index) => {
         console.log(`[Slide Map] Index: ${index}, Type: ${slide?.type}, Slide Object:`, slide);
+        let slideContent = null;
         switch (slide?.type) {
           case 'Portada':
-            return (
+            slideContent = (
               <Slide
                 key={`slide-${slide.slideNumber}`}
                 backgroundImage="url(/images/PORTADA.jpg)"
@@ -134,11 +157,13 @@ const App: React.FC = () => {
                   left={0}
                   width="100%"
                   height="100%"
+                  // El Box interno no necesita ser clickeable si el wrapper lo es
                 />
               </Slide>
             );
+            break;
           case 'LineaTiempo_Bloque':
-            return (
+            slideContent = (
               <Slide 
                 key={`slide-${slide.slideNumber}`}
                 backgroundColor={theme.colors.background}
@@ -151,15 +176,12 @@ const App: React.FC = () => {
                   margin={0}
                   backgroundColor={theme.colors.background}
                 >
-                   {/* Mover AnimatePresence y la imagen DENTRO del Stepper */}
-                   {/* El contenido del Stepper ahora envuelve la imagen */}
+                   {/* Stepper y su contenido interno */}
                    <Stepper values={slide.content.hitos || []}>
                      {/* eslint-disable-next-line @typescript-eslint/no-unused-vars */}
                      {(_value, step) => {
-                       // Obtener la imagen y la posición correspondientes al paso actual
                        const currentImage = slide.content.images?.[step];
                        const currentPosition = slide.content.imagePositions?.[step] || 'center 50%';
-
                        return (
                           <Box
                             position="relative"
@@ -173,10 +195,10 @@ const App: React.FC = () => {
                               backgroundPosition: currentPosition,
                             }}
                           >
-                            {/* Contenido del texto del hito (encima de la imagen) */}
+                            {/* Contenido del texto del hito */}
                             <Box
                               position="relative"
-                              zIndex={1} // Asegura que el texto esté sobre la imagen
+                              zIndex={1}
                               width="100%"
                               height="100%"
                               overflowY="auto"
@@ -187,16 +209,16 @@ const App: React.FC = () => {
                                 width="100%" 
                                 padding="40px 60px 200px 60px"
                               >
-                                {(slide.content.hitos || []).map((hito, index) => {
-                                  const isActive = index === step;
-                                  const previousHitoStr = index > 0 ? String(slide.content.hitos?.[index - 1]) : undefined;
+                                {(slide.content.hitos || []).map((hito, hitoIndex) => {
+                                  const isActive = hitoIndex === step;
+                                  const previousHitoStr = hitoIndex > 0 ? String(slide.content.hitos?.[hitoIndex - 1]) : undefined;
                                   return (
                                     <TimelineItem
-                                      key={index}
+                                      key={hitoIndex}
                                       hitoStr={String(hito)}
                                       isActive={isActive}
                                       slideNumber={slide.slideNumber}
-                                      index={index}
+                                      index={hitoIndex}
                                       previousYearStr={previousHitoStr}
                                     />
                                   );
@@ -210,8 +232,9 @@ const App: React.FC = () => {
                 </Box>
               </Slide>
             );
+            break;
           case 'Cierre':
-            return (
+            slideContent = (
               <Slide 
                 key={`slide-${slide.slideNumber}`} 
                 backgroundImage="url(/images/Sifras.jpg)"
@@ -223,8 +246,9 @@ const App: React.FC = () => {
                 {/* Contenido eliminado */}
               </Slide>
             );
+            break;
           case 'Contacto':
-            return (
+            slideContent = (
               <Slide
                 key={`slide-${slide.slideNumber}`}
                 backgroundImage="url(/images/Contacto.jpg)"
@@ -236,10 +260,14 @@ const App: React.FC = () => {
                 {/* Solo imagen de fondo */}
               </Slide>
             );
+            break;
           default:
             console.warn(`[Slide Map] Default case hit! Index: ${index}, Slide Object:`, slide);
             return null;
         }
+        // Envolver el contenido de la diapositiva generado en el wrapper clickeable
+        return slideContent ? <ClickableSlideWrapper key={`wrapper-${slide.slideNumber}`}>{slideContent}</ClickableSlideWrapper> : null;
+
       }).filter(Boolean)}
     </Deck>
   );
