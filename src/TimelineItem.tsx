@@ -21,7 +21,9 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
   typingSpeed = 50, // Velocidad por defecto
 }) => {
   const [displayedText, setDisplayedText] = useState('');
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [showCursor, setShowCursor] = useState(true);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const cursorIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const itemRef = useRef<HTMLDivElement>(null); // Ref para el scrollIntoView
 
   // --- Lógica para extraer datos del hito (movida aquí) ---
@@ -59,50 +61,47 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
     }
   }, [isActive]);
 
+  // Efecto para el cursor parpadeante
+  useEffect(() => {
+    if (isActive) {
+      cursorIntervalRef.current = setInterval(() => {
+        setShowCursor((prev) => !prev);
+      }, 500);
+    } else {
+      setShowCursor(false);
+      if (cursorIntervalRef.current) clearInterval(cursorIntervalRef.current);
+    }
+    return () => {
+      if (cursorIntervalRef.current) clearInterval(cursorIntervalRef.current);
+    };
+  }, [isActive]);
+
   // Efecto para la animación de escritura
   useEffect(() => {
-    // Limpiar intervalo anterior al cambiar isActive o textoPrincipal
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
     }
-    setDisplayedText(''); // Resetear texto al cambiar
+    setDisplayedText('');
 
     if (isActive) {
       let charIndex = 0;
-      intervalRef.current = setInterval(() => {
+      const typeChar = () => {
+        setDisplayedText(textoPrincipal.slice(0, charIndex + 1));
+        charIndex++;
         if (charIndex < textoPrincipal.length) {
-          const charToAdd = textoPrincipal[charIndex];
-          if (charToAdd !== undefined) {
-            setDisplayedText((prev) => prev + charToAdd);
-          } else {
-            console.error('Typing effect tried to add undefined character at index:', charIndex);
-            if (intervalRef.current) {
-              clearInterval(intervalRef.current);
-              intervalRef.current = null;
-            }
-          }
-          charIndex++;
-        } else {
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-          }
+          typingTimeoutRef.current = setTimeout(typeChar, typingSpeed);
         }
-      }, typingSpeed);
+      };
+      typeChar();
     } else {
-       // Si no está activo, mostrar el texto completo inmediatamente
-       setDisplayedText(textoPrincipal);
+      setDisplayedText(textoPrincipal);
     }
 
-    // Función de limpieza
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [isActive, textoPrincipal, typingSpeed]); // Dependencias clave
+  }, [isActive, textoPrincipal, typingSpeed]);
 
   return (
     <motion.div
@@ -131,17 +130,18 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
           {/* Renderizar el texto que se está escribiendo */}
           <Text as="div" fontFamily="Poppins" fontWeight="bold" fontSize="40px" color="#000" margin="0" lineHeight="1.1" style={{ minHeight: '53px' /* Ajustar si es necesario para evitar saltos */ }}>
             {displayedText}
-            <span 
+            <span
               style={{
                 display: 'inline-block',
-                width: '2px', // Ancho del cursor
-                height: '1em', // Altura relativa a la fuente
-                backgroundColor: 'currentColor', // Color del cursor (igual al texto)
-                marginLeft: '2px', // Pequeño espacio antes del cursor
-                opacity: intervalRef.current ? 1 : 0, // Desaparece cuando intervalRef es null
-                verticalAlign: 'baseline' // Alinear con la línea base del texto
+                width: '2px',
+                height: '1em',
+                backgroundColor: 'currentColor',
+                marginLeft: '2px',
+                opacity: showCursor ? 1 : 0,
+                verticalAlign: 'baseline',
+                transition: 'opacity 0.2s'
               }}
-            ></span> {/* Span vacío estilizado */}
+            ></span>
           </Text>
         </Box>
       ) : (
